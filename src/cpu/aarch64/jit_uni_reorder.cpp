@@ -176,7 +176,11 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator_t {
         bool is_f16 = (p.itype == f16 || p.otype == f16);
         bool f16_ok = (p.itype == f32 && p.otype == f16 && p.beta == 0.f)
                 || (p.itype == f16 && p.otype == f32 && p.beta == 0.f)
-                || (p.itype == f16 && p.otype == f16 && p.beta == 0.f);
+                || (p.itype == f16 && p.otype == f16 && p.beta == 0.f)
+                || (p.itype == f16 && utils::one_of(p.otype, u8, data_type::s8)
+                        && p.beta == 0.f)
+                || (p.otype == f16 && utils::one_of(p.itype, u8, data_type::s8)
+                        && p.beta == 0.f);
 
         bool ok = true && p.ndims > 0
                 && utils::one_of(
@@ -1324,6 +1328,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator_t {
     static bool interim_f32_needed(const prb_t &prb, bool compensation_needed) {
         using namespace data_type;
         bool ret = utils::one_of(f32, prb.itype, prb.otype)
+                || utils::one_of(f16, prb.itype, prb.otype)
                 || prb.src_scale_type != scale_type_t::NONE
                 || prb.dst_scale_type != scale_type_t::NONE || prb.beta != 0.f
                 || ((prb.req_src_zp || prb.req_dst_zp)
