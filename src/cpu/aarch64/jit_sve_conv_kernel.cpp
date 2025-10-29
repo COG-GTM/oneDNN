@@ -612,9 +612,9 @@ void jit_sve_conv_fwd_kernel_t<isa>::generate() {
 
     int inp_mult = is_src_layout_nxc() ? jcp.ngroups * jcp.ic
                                        : (jcp.is_1stconv ? 1 : jcp.ic_block);
-    int inp_shift_pad = jcp.typesize_in * (ur_w * stride_w - l_pad) * inp_mult;
+    int inp_shift_pad = jcp.typesize_in * nstl::max(0, ur_w * stride_w - l_pad) * inp_mult;
     int inp_shift = jcp.typesize_in * ur_w * stride_w * inp_mult;
-    int inp_shift_pad_second_block = -1 * jcp.typesize_in * l_pad * inp_mult;
+    int inp_shift_pad_second_block = -1 * jcp.typesize_in * nstl::min(l_pad, ow_block * stride_w) * inp_mult;
     int out_shift = jcp.typesize_out * ur_w
             * (is_dst_layout_nxc() ? jcp.ngroups * jcp.oc : jcp.oc_block);
 
@@ -1188,8 +1188,6 @@ status_t jit_sve_conv_fwd_kernel_t<isa>::init_conf(jit_conv_conf_t &jcp,
         else
             jcp.nb_ic_L2 = nstl::min(nb_ic_theshold_L2, jcp.nb_ic);
     }
-    //Temporary fix nightly crash for large l_pad failing test mb1ic64ih1iw33oc1oh1ow33kh1kw24ph0pw23n"l_pad_exceeds_ow_block"
-    if (2 * jcp.l_pad > jcp.ow_block) return status::unimplemented;
 
     // A rough check on code size
     // TODO: come up with a tighter bound
