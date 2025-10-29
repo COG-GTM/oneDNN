@@ -485,6 +485,12 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
         res->state = SKIPPED;
         res->reason = skip_reason::case_not_supported;
     }
+    const bool is_bwd_weights = (prb->dir & FLAG_BWD) && (prb->dir & FLAG_WEI);
+    const bool has_scale_or_shift = (prb->flags & USE_SCALE) || (prb->flags & USE_SHIFT);
+    if (is_nvidia_gpu() && is_bwd_weights && has_scale_or_shift) {
+        res->state = SKIPPED;
+        res->reason = skip_reason::case_not_supported;
+    }
     // int8 only supports forward s8 w/ global stats
     const bool u8_not_ok = prb->dt == dnnl_u8;
     const bool s8_not_ok = prb->dt == dnnl_s8
