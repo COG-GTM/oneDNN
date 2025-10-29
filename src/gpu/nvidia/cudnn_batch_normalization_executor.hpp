@@ -105,6 +105,9 @@ protected:
             std::shared_ptr<bnorm_args_t> args(new bnorm_fwd_args_t(x, y, mean,
                     var, scale, shift, y_prime, save_mean, save_var));
             bnorm_impl->execute(handle, args);
+            cudaStream_t stream;
+            cudnnGetStream(handle, &stream);
+            cudaStreamSynchronize(stream);
         });
     }
 
@@ -178,6 +181,9 @@ protected:
                     new bnorm_bwd_args_t(x, dx, dy, save_mean, save_var, scale,
                             diff_scale, diff_shift, wkspace, relu_dy));
             bnorm_impl->execute(handle, args);
+            cudaStream_t stream;
+            cudnnGetStream(handle, &stream);
+            cudaStreamSynchronize(stream);
         });
     }
 

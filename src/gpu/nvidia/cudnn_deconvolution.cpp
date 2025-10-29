@@ -48,6 +48,9 @@ status_t cudnn_deconvolution_bwd_weights_t::execute_bias(
             void *y = arg_diff_dst.get_native_pointer(ih);
 
             impl_->execute_bias(handle, y, bias);
+            cudaStream_t stream;
+            cudnnGetStream(handle, &stream);
+            cudaStreamSynchronize(stream);
         });
     });
 }

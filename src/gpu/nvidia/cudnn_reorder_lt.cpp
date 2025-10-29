@@ -116,6 +116,9 @@ status_t cudnn_reorder_lt_t::execute(const exec_ctx_t &ctx) const {
             void *dst_sc = arg_dst_scale.get_native_pointer(ih);
 
             cublaslt_reorder_->execute(handle, a, b, src_sc, dst_sc);
+            cudaStream_t stream;
+            cublasGetStream(handle, &stream);
+            cudaStreamSynchronize(stream);
         });
 
         if (pd()->dst_float_) {
