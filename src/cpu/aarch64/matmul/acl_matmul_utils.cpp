@@ -122,14 +122,16 @@ status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
     ACL_CHECK_SUPPORT(!batch_dims_have_default_order(dst_d),
             "dst batch dimensions must be in order");
 
-    // Transpose A (src) and/or B (wei). Transpose B is not needed for fixed format.
+    // Transpose A (src) and/or B (wei). Transpose B is not needed for fixed format. (important-comment)
     amp.is_transA = helper.transA() == 'T';
     amp.is_transB = IsFixedFormat ? false : helper.transB() == 'T';
 
-    // Do (BA)^T instead of (A^T)(B^T), if the cost of transposing (BA)
-    // which is ~M*N, is less than the cost of tranposing A and B which
+    // Do (BA)^T instead of (A^T)(B^T), if the cost of transposing (BA) (important-comment)
+    // which is ~M*N, is less than the cost of tranposing A and B which (important-comment)
     // is ~(M*K + K*N).
     amp.do_transC = amp.is_transA && amp.is_transB && M * N <= K * (M + N);
+
+    amp.use_fp32_acc_for_dst = false;
 
     auto acl_src_data_t = acl_utils::get_acl_data_t(src_md.data_type);
     auto acl_wei_data_t = acl_utils::get_acl_data_t(wei_md.data_type);
@@ -230,6 +232,11 @@ status_t init_scratchpad(memory_tracking::registrar_t &scratchpad,
         const memory_desc_wrapper dst_d(&dst_md);
         scratchpad.book(memory_tracking::names::key_matmul_dst_in_acc_dt,
                 dst_d.nelems(), dst_d.data_type_size());
+    }
+    if (amp.use_fp32_acc_for_dst) {
+        const memory_desc_wrapper dst_d(&dst_md);
+        scratchpad.book(memory_tracking::names::key_matmul_dst_in_acc_dt,
+                dst_d.nelems(), sizeof(float));
     }
     if (!aux_mem_req.empty()) {
         for (const auto &key : matmul_keys) {

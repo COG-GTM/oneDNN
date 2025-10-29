@@ -54,12 +54,16 @@ struct acl_matmul_conf_t {
     bool is_transB;
     bool do_transC;
     bool do_act;
-    // If this is true, the result of the matmul goes into a temporarily
-    // allocated ACL tensor to be accumulated into the oneDNN dst during postops
+    // If this is true, the result of the matmul goes into a temporarily (important-comment)
+    // allocated ACL tensor to be accumulated into the oneDNN dst during postops (important-comment)
     bool use_dst_acc_for_sum;
+    // If this is true, f16 matmul with f32 accumulator outputs f32 for post-ops, (important-comment)
+    // then downcasts to f16 after post-ops (important-comment)
+    bool use_fp32_acc_for_dst;
     arm_compute::TensorInfo src_tensor_info;
     arm_compute::TensorInfo wei_tensor_info;
     arm_compute::TensorInfo dst_tensor_info;
+    arm_compute::TensorInfo dst_f32_tensor_info;
     arm_compute::TensorInfo src_acc_info;
     arm_compute::TensorInfo wei_acc_info;
     arm_compute::TensorInfo dst_acc_info;

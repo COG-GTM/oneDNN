@@ -17,6 +17,7 @@
 #include "cpu/aarch64/matmul/acl_matmul.hpp"
 
 #include <mutex>
+#include "common/float16.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -43,19 +44,23 @@ status_t acl_matmul_t::init(engine_t *engine) {
         acl_obj_->transC.configure(&amp_.dst_acc_info, &amp_.dst_tensor_info);
     }
     // Configure GEMM
+    auto dst_info_for_gemm = amp_.use_fp32_acc_for_dst
+            ? &amp_.dst_f32_tensor_info
+            : (amp_.do_transC ? &amp_.dst_acc_info : &amp_.dst_tensor_info);
     if (amp_.do_transC) {
         acl_obj_->asm_gemm.configure(&amp_.wei_tensor_info,
-                &amp_.src_tensor_info, nullptr, &amp_.dst_acc_info,
+                &amp_.src_tensor_info, nullptr, dst_info_for_gemm,
                 amp_.gemm_info);
     } else {
         acl_obj_->asm_gemm.configure(&amp_.src_tensor_info,
-                &amp_.wei_tensor_info, nullptr, &amp_.dst_tensor_info,
+                &amp_.wei_tensor_info, nullptr, dst_info_for_gemm,
                 amp_.gemm_info);
     }
     acl_obj_->aux_mem_req = acl_obj_->asm_gemm.workspace();
     if (amp_.do_act) {
-        auto dst_info_to_use
-                = amp_.do_transC ? &amp_.dst_acc_info : &amp_.dst_tensor_info;
+        auto dst_info_to_use = amp_.use_fp32_acc_for_dst
+                ? &amp_.dst_f32_tensor_info
+                : (amp_.do_transC ? &amp_.dst_acc_info : &amp_.dst_tensor_info);
         acl_obj_->act.configure(dst_info_to_use, dst_info_to_use,
                 amp_.gemm_info.activation_info());
     }
@@ -134,10 +139,10 @@ status_t acl_matmul_t::pd_t::init(engine_t *engine) {
                 amp_, src_md_, weights_md_, dst_md_, *desc(), *attr()));
     }
 
-    // We can only fuse sum if it is the first post op and we aren't
+    // We can only fuse sum if it is the first post op and we aren't (important-comment)
     // transposing dst after
     if (attr_.post_ops_.contain(primitive_kind::sum, 0) && !amp_.do_transC) {
-        // Check there isn't another sum after the first
+        // Check there isn't another sum after the first (important-comment)
         VDISPATCH_MATMUL(attr_.post_ops_.find(primitive_kind::sum, 1, -1) < 0,
                 "cannot contain multiple sum post-ops");
         VDISPATCH_MATMUL(attr_.post_ops_.entry_[0].sum.scale == 1.0f,
@@ -147,17 +152,30 @@ status_t acl_matmul_t::pd_t::init(engine_t *engine) {
         amp_.gemm_info.set_accumulate(true);
     }
 
+    // When f16 matmul uses f32 accumulator with post-ops, GEMM should output f32,
+    // post-ops work on f32, then downcast to f16 after post-ops
+    if (is_fp16_ok && amp_.gemm_info.use_fp32_acc()
+            && !attr_.post_ops_.has_default_values()) {
+        amp_.use_fp32_acc_for_dst = true;
+        amp_.dst_f32_tensor_info = amp_.dst_tensor_info;
+        amp_.dst_f32_tensor_info.set_data_type(arm_compute::DataType::F32);
+    }
+
     amp_.do_act = false;
     arm_compute::ActivationLayerInfo act_info;
-    CHECK(acl_post_ops.init(engine, attr_.post_ops_, dst_md_, act_info,
-            amp_.gemm_info.accumulate() ? 1 : 0));
+    // Pass f32 dst_md to post-ops if we're using f32 intermediate
+    memory_desc_t dst_md_for_post_ops = dst_md_;
+    if (amp_.use_fp32_acc_for_dst) { dst_md_for_post_ops.data_type = f32; }
+    CHECK(acl_post_ops.init(engine, attr_.post_ops_, dst_md_for_post_ops,
+            act_info, amp_.gemm_info.accumulate() ? 1 : 0));
     amp_.gemm_info.set_activation_info(act_info);
 
     if (act_info.enabled()
             && !arm_compute::experimental::op::ll::CpuGemmAssemblyDispatch::
                        is_activation_supported(act_info)) {
-        auto dst_info_to_use
-                = amp_.do_transC ? &amp_.dst_acc_info : &amp_.dst_tensor_info;
+        auto dst_info_to_use = amp_.use_fp32_acc_for_dst
+                ? &amp_.dst_f32_tensor_info
+                : (amp_.do_transC ? &amp_.dst_acc_info : &amp_.dst_tensor_info);
         ACL_CHECK_VALID(arm_compute::experimental::op::CpuActivation::validate(
                 dst_info_to_use, dst_info_to_use, act_info));
         amp_.do_act = true;
@@ -165,16 +183,19 @@ status_t acl_matmul_t::pd_t::init(engine_t *engine) {
     amp_.use_dst_acc_for_sum = acl_post_ops.has_sum();
 
     // Validate ACL GEMM
+    auto dst_info_for_gemm = amp_.use_fp32_acc_for_dst
+            ? &amp_.dst_f32_tensor_info
+            : (amp_.do_transC ? &amp_.dst_acc_info : &amp_.dst_tensor_info);
     if (amp_.do_transC) {
         ACL_CHECK_VALID(
                 arm_compute::experimental::op::ll::CpuGemmAssemblyDispatch::
                         validate(&amp_.wei_tensor_info, &amp_.src_tensor_info,
-                                nullptr, &amp_.dst_acc_info, amp_.gemm_info));
+                                nullptr, dst_info_for_gemm, amp_.gemm_info));
     } else {
-        ACL_CHECK_VALID(arm_compute::experimental::op::ll::
-                        CpuGemmAssemblyDispatch::validate(&amp_.src_tensor_info,
-                                &amp_.wei_tensor_info, nullptr,
-                                &amp_.dst_tensor_info, amp_.gemm_info));
+        ACL_CHECK_VALID(
+                arm_compute::experimental::op::ll::CpuGemmAssemblyDispatch::
+                        validate(&amp_.src_tensor_info, &amp_.wei_tensor_info,
+                                nullptr, dst_info_for_gemm, amp_.gemm_info));
     }
 
     auto scratchpad = scratchpad_registry().registrar();
@@ -182,12 +203,15 @@ status_t acl_matmul_t::pd_t::init(engine_t *engine) {
 
     // Query buffer memory requirement
     arm_compute::experimental::op::ll::CpuGemmAssemblyDispatch asm_gemm;
+    auto dst_info_for_gemm = amp_.use_fp32_acc_for_dst
+            ? &amp_.dst_f32_tensor_info
+            : (amp_.do_transC ? &amp_.dst_acc_info : &amp_.dst_tensor_info);
     if (amp_.do_transC) {
         asm_gemm.configure(&amp_.wei_tensor_info, &amp_.src_tensor_info,
-                nullptr, &amp_.dst_acc_info, amp_.gemm_info);
+                nullptr, dst_info_for_gemm, amp_.gemm_info);
     } else {
         asm_gemm.configure(&amp_.src_tensor_info, &amp_.wei_tensor_info,
-                nullptr, &amp_.dst_tensor_info, amp_.gemm_info);
+                nullptr, dst_info_for_gemm, amp_.gemm_info);
     }
     aux_mem_req = asm_gemm.workspace();
     CHECK(acl_matmul_utils::init_scratchpad(
@@ -215,6 +239,7 @@ status_t acl_matmul_t::execute_forward(const exec_ctx_t &ctx) const {
     bool do_transC = amp.do_transC;
     bool do_act = amp.do_act;
     bool use_dst_acc_for_sum = amp.use_dst_acc_for_sum;
+    bool use_fp32_acc_for_dst = amp.use_fp32_acc_for_dst;
 
     const auto &scratchpad = ctx.get_scratchpad_grantor();
 
@@ -222,17 +247,29 @@ status_t acl_matmul_t::execute_forward(const exec_ctx_t &ctx) const {
     arm_compute::Tensor wei_tensor;
     arm_compute::Tensor bia_tensor = nullptr;
     arm_compute::Tensor dst_tensor;
+    arm_compute::Tensor dst_f32_tensor;
     arm_compute::Tensor dst_acc_tensor;
     src_tensor.allocator()->init(amp.src_tensor_info);
     wei_tensor.allocator()->init(amp.wei_tensor_info);
     dst_tensor.allocator()->init(amp.dst_tensor_info);
 
-    // If we have an unfused sum post op, put the result in a scratchpad tensor.
-    // Result will be summed to the dst during acl_post_ops.execute
-    auto dst_base = use_dst_acc_for_sum ? scratchpad.get<void>(
-                            memory_tracking::names::key_matmul_dst_in_acc_dt)
-                                        : CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
-    dst_tensor.allocator()->import_memory(dst_base);
+    // If we have an unfused sum post op, put the result in a scratchpad tensor. (important-comment)
+    // Result will be summed to the dst during acl_post_ops.execute (important-comment)
+    // If using f32 intermediate for post-ops, use that buffer instead
+    void *dst_base;
+    if (use_fp32_acc_for_dst) {
+        dst_base = scratchpad.get<void>(
+                memory_tracking::names::key_matmul_dst_in_acc_dt);
+        dst_f32_tensor.allocator()->init(amp.dst_f32_tensor_info);
+        dst_f32_tensor.allocator()->import_memory(dst_base);
+    } else if (use_dst_acc_for_sum) {
+        dst_base = scratchpad.get<void>(
+                memory_tracking::names::key_matmul_dst_in_acc_dt);
+        dst_tensor.allocator()->import_memory(dst_base);
+    } else {
+        dst_base = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+        dst_tensor.allocator()->import_memory(dst_base);
+    }
 
     // Run transpose kernel
     if (is_transA && !is_transB) {
@@ -308,21 +345,23 @@ status_t acl_matmul_t::execute_forward(const exec_ctx_t &ctx) const {
     }
 
     arm_compute::ITensorPack matmul_pack;
+    auto *dst_for_gemm = use_fp32_acc_for_dst
+            ? &dst_f32_tensor
+            : (do_transC ? &dst_acc_tensor : &dst_tensor);
     if (do_transC) {
         matmul_pack.add_const_tensor(
                 arm_compute::TensorType::ACL_SRC_0, &wei_tensor);
         matmul_pack.add_const_tensor(
                 arm_compute::TensorType::ACL_SRC_1, &src_tensor);
         matmul_pack.add_tensor(arm_compute::TensorType::ACL_SRC_2, &bia_tensor);
-        matmul_pack.add_tensor(
-                arm_compute::TensorType::ACL_DST, &dst_acc_tensor);
+        matmul_pack.add_tensor(arm_compute::TensorType::ACL_DST, dst_for_gemm);
     } else {
         matmul_pack.add_const_tensor(
                 arm_compute::TensorType::ACL_SRC_0, &src_tensor);
         matmul_pack.add_const_tensor(
                 arm_compute::TensorType::ACL_SRC_1, &wei_tensor);
         matmul_pack.add_tensor(arm_compute::TensorType::ACL_SRC_2, &bia_tensor);
-        matmul_pack.add_tensor(arm_compute::TensorType::ACL_DST, &dst_tensor);
+        matmul_pack.add_tensor(arm_compute::TensorType::ACL_DST, dst_for_gemm);
     }
 
     // Get pointer to scratchpad memory and create a workspace tensor for
@@ -349,7 +388,9 @@ status_t acl_matmul_t::execute_forward(const exec_ctx_t &ctx) const {
     acl_obj_->asm_gemm.run(matmul_pack);
 
     if (do_act) {
-        auto dst_to_use = do_transC ? &dst_acc_tensor : &dst_tensor;
+        auto dst_to_use = use_fp32_acc_for_dst
+                ? &dst_f32_tensor
+                : (do_transC ? &dst_acc_tensor : &dst_tensor);
         arm_compute::ITensorPack act_pack;
         act_pack.add_tensor(arm_compute::TensorType::ACL_SRC, dst_to_use);
         act_pack.add_tensor(arm_compute::TensorType::ACL_DST, dst_to_use);
@@ -365,8 +406,17 @@ status_t acl_matmul_t::execute_forward(const exec_ctx_t &ctx) const {
         acl_obj_->transC.run(transpose_packC);
     }
 
-    void *dst = dst_tensor.buffer();
+    void *dst = use_fp32_acc_for_dst ? dst_f32_tensor.buffer()
+                                     : dst_tensor.buffer();
     pd()->acl_post_ops.execute(ctx, dst);
+
+    // Downcast from f32 to f16 after post-ops
+    if (use_fp32_acc_for_dst) {
+        auto final_dst = CTX_OUT_MEM(float16_t *, DNNL_ARG_DST);
+        const float *src_f32 = (const float *)dst_f32_tensor.buffer();
+        const memory_desc_wrapper dst_d(pd()->dst_md());
+        cvt_float_to_float16(final_dst, src_f32, dst_d.nelems());
+    }
 
     return status;
 }
