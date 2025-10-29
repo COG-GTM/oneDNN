@@ -189,7 +189,7 @@ status_t acl_lowp_matmul_t::pd_t::init(engine_t *engine) {
     // Even if dst is s8, we do the post ops in f32
     memory_desc_t post_ops_default_md = dst_md_;
     post_ops_default_md.data_type = f32;
-    CHECK(acl_post_ops.init(engine, attr_.post_ops_, post_ops_default_md,
+    CHECK(acl_post_ops.init(engine, &attr_, attr_.post_ops_, post_ops_default_md,
             almc_.gemm_info.accumulate() ? 1 : 0));
 
     almc_.dst_tensor_info = arm_compute::TensorInfo(

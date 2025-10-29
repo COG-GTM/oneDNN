@@ -17,6 +17,7 @@
 #ifndef CPU_AARCH64_ACL_POST_OPS_HPP
 #define CPU_AARCH64_ACL_POST_OPS_HPP
 
+#include "common/c_types_map.hpp"
 #include "cpu/aarch64/acl_binary.hpp"
 #include "cpu/aarch64/acl_eltwise.hpp"
 
@@ -31,8 +32,9 @@ struct acl_post_ops_t {
 
     // init the acl_post_ops_t. Note that this function modifies the passed in
     // post ops by setting the preferred memory formats
-    status_t init(engine_t *engine, post_ops_t &post_ops,
-            const memory_desc_t &dst_md, int post_op_start_index = 0) {
+    status_t init(engine_t *engine, const primitive_attr_t *attr,
+            post_ops_t &post_ops, const memory_desc_t &dst_md,
+            int post_op_start_index = 0) {
 
         post_op_start_index_ = post_op_start_index;
 
@@ -135,17 +137,20 @@ struct acl_post_ops_t {
     // that it can be fused, placing it in act_info_to_fuse. Note that this
     // function modifies the passed in post ops by setting the preferred memory
     // formats
-    status_t init(engine_t *engine, post_ops_t &base_post_ops,
-            const memory_desc_t &dst_md,
+    status_t init(engine_t *engine, const primitive_attr_t *attr,
+            post_ops_t &base_post_ops, const memory_desc_t &dst_md,
             arm_compute::ActivationLayerInfo &act_info_to_fuse,
             int post_op_start_index = 0) {
 
         CHECK(base_post_ops.set_default_formats(&dst_md));
         dst_data_type = dst_md.data_type;
-        // If the first entry is eltwise, we fuse it, except when the datatype
-        // is fp16 because in this case we want to execute the eltwise in fp32.
+
+        const bool use_fp32_acc = attr
+                && utils::one_of(attr->acc_mode_, accumulation_mode::strict,
+                        accumulation_mode::f32);
+
         if (base_post_ops.len() >= 1 && base_post_ops.entry_[0].is_eltwise()
-                && dst_data_type != data_type::f16) {
+                && !(dst_data_type == data_type::f16 && use_fp32_acc)) {
 
             const auto &first_po = base_post_ops.entry_[0].eltwise;
             ACL_CHECK_SUPPORT(first_po.scale != 1.0f,
@@ -153,10 +158,11 @@ struct acl_post_ops_t {
             CHECK(acl_utils::convert_to_acl_act(first_po, act_info_to_fuse));
 
             // post_op_start_index + 1 to skip the fused eltwise
-            return init(engine, base_post_ops, dst_md, post_op_start_index + 1);
+            return init(
+                    engine, attr, base_post_ops, dst_md, post_op_start_index + 1);
         } else {
             // Nothing to fuse, just copy all post ops
-            return init(engine, base_post_ops, dst_md, post_op_start_index);
+            return init(engine, attr, base_post_ops, dst_md, post_op_start_index);
         }
     }
 

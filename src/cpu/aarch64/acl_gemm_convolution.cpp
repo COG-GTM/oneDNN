@@ -82,8 +82,9 @@ status_t acl_gemm_convolution_fwd_t<src_t, wei_t, dst_t, bia_t>::pd_t::init(
 
     auto scratchpad = scratchpad_registry().registrar();
     const auto mem_req = conv.workspace();
-    return init_scratchpad(conv, scratchpad, gemm_conv_keys, engine, post_ops,
-            attr_.post_ops_, acp_.act_info, acp_.use_dst_acc_for_sum, dst_md_);
+    return init_scratchpad(conv, scratchpad, gemm_conv_keys, engine, &attr_,
+            post_ops, attr_.post_ops_, acp_.act_info, acp_.use_dst_acc_for_sum,
+            dst_md_);
 }
 
 template <data_type_t src_t, data_type_t wei_t, data_type_t dst_t,

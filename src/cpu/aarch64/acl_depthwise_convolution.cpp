@@ -73,7 +73,7 @@ status_t acl_depthwise_convolution_fwd_t::pd_t::init(engine_t *engine) {
             acp_.act_info, acp_.dilation_info);
 
     auto scratchpad = scratchpad_registry().registrar();
-    return init_scratchpad(conv, scratchpad, depthwise_conv_keys, engine,
+    return init_scratchpad(conv, scratchpad, depthwise_conv_keys, engine, &attr_,
             post_ops, attr_.post_ops_, acp_.act_info, acp_.use_dst_acc_for_sum,
             dst_md_);
 }

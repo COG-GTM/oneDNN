@@ -81,7 +81,8 @@ using conv_key_t = decltype(memory_tracking::names::key_gemm_tmp_buffer);
 template <typename op_t, typename post_ops_t>
 status_t init_scratchpad(op_t &conv, memory_tracking::registrar_t &scratchpad,
         const std::map<int, conv_key_t> &conv_keys, engine_t *engine,
-        post_ops_t &post_ops, dnnl::impl::post_ops_t &attr_post_ops,
+        const primitive_attr_t *attr, post_ops_t &post_ops,
+        dnnl::impl::post_ops_t &attr_post_ops,
         arm_compute::ActivationLayerInfo &act_info, bool &use_dst_acc_for_sum,
         const dnnl::impl::memory_desc_t &dst_md) {
 
@@ -95,7 +96,7 @@ status_t init_scratchpad(op_t &conv, memory_tracking::registrar_t &scratchpad,
         }
     }
 
-    CHECK(post_ops.init(engine, attr_post_ops, dst_md, act_info));
+    CHECK(post_ops.init(engine, attr, attr_post_ops, dst_md, act_info));
     use_dst_acc_for_sum = post_ops.has_sum();
 
     if (use_dst_acc_for_sum) {
