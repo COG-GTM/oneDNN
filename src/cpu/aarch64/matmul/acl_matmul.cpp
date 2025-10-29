@@ -48,14 +48,18 @@ status_t acl_matmul_t::init(engine_t *engine) {
                 &amp_.src_tensor_info, nullptr, &amp_.dst_acc_info,
                 amp_.gemm_info);
     } else {
+        auto dst_info_for_gemm = amp_.use_f32_acc_for_postops
+                ? &amp_.dst_acc_info
+                : &amp_.dst_tensor_info;
         acl_obj_->asm_gemm.configure(&amp_.src_tensor_info,
-                &amp_.wei_tensor_info, nullptr, &amp_.dst_tensor_info,
+                &amp_.wei_tensor_info, nullptr, dst_info_for_gemm,
                 amp_.gemm_info);
     }
     acl_obj_->aux_mem_req = acl_obj_->asm_gemm.workspace();
     if (amp_.do_act) {
-        auto dst_info_to_use
-                = amp_.do_transC ? &amp_.dst_acc_info : &amp_.dst_tensor_info;
+        auto dst_info_to_use = amp_.use_f32_acc_for_postops
+                ? &amp_.dst_acc_info
+                : (amp_.do_transC ? &amp_.dst_acc_info : &amp_.dst_tensor_info);
         acl_obj_->act.configure(dst_info_to_use, dst_info_to_use,
                 amp_.gemm_info.activation_info());
     }
@@ -164,6 +168,11 @@ status_t acl_matmul_t::pd_t::init(engine_t *engine) {
     }
     amp_.use_dst_acc_for_sum = acl_post_ops.has_sum();
 
+    if (amp_.dst_acc_info.total_size() > 0
+            && (amp_.do_act || attr_.post_ops_.len() > 0)) {
+        amp_.use_f32_acc_for_postops = true;
+    }
+
     // Validate ACL GEMM
     if (amp_.do_transC) {
         ACL_CHECK_VALID(
@@ -215,6 +224,7 @@ status_t acl_matmul_t::execute_forward(const exec_ctx_t &ctx) const {
     bool do_transC = amp.do_transC;
     bool do_act = amp.do_act;
     bool use_dst_acc_for_sum = amp.use_dst_acc_for_sum;
+    bool use_f32_acc_for_postops = amp.use_f32_acc_for_postops;
 
     const auto &scratchpad = ctx.get_scratchpad_grantor();
 
@@ -232,6 +242,15 @@ status_t acl_matmul_t::execute_forward(const exec_ctx_t &ctx) const {
     auto dst_base = use_dst_acc_for_sum ? scratchpad.get<void>(
                             memory_tracking::names::key_matmul_dst_in_acc_dt)
                                         : CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+
+    void *f32_acc_base = nullptr;
+    if (use_f32_acc_for_postops) {
+        f32_acc_base = scratchpad.get<void>(
+                memory_tracking::names::key_matmul_dst_in_acc_dt);
+        dst_acc_tensor.allocator()->init(amp.dst_acc_info);
+        dst_acc_tensor.allocator()->import_memory(f32_acc_base);
+    }
+
     dst_tensor.allocator()->import_memory(dst_base);
 
     // Run transpose kernel
@@ -322,7 +341,9 @@ status_t acl_matmul_t::execute_forward(const exec_ctx_t &ctx) const {
         matmul_pack.add_const_tensor(
                 arm_compute::TensorType::ACL_SRC_1, &wei_tensor);
         matmul_pack.add_tensor(arm_compute::TensorType::ACL_SRC_2, &bia_tensor);
-        matmul_pack.add_tensor(arm_compute::TensorType::ACL_DST, &dst_tensor);
+        auto dst_for_gemm
+                = use_f32_acc_for_postops ? &dst_acc_tensor : &dst_tensor;
+        matmul_pack.add_tensor(arm_compute::TensorType::ACL_DST, dst_for_gemm);
     }
 
     // Get pointer to scratchpad memory and create a workspace tensor for
@@ -349,7 +370,9 @@ status_t acl_matmul_t::execute_forward(const exec_ctx_t &ctx) const {
     acl_obj_->asm_gemm.run(matmul_pack);
 
     if (do_act) {
-        auto dst_to_use = do_transC ? &dst_acc_tensor : &dst_tensor;
+        auto dst_to_use = use_f32_acc_for_postops
+                ? &dst_acc_tensor
+                : (do_transC ? &dst_acc_tensor : &dst_tensor);
         arm_compute::ITensorPack act_pack;
         act_pack.add_tensor(arm_compute::TensorType::ACL_SRC, dst_to_use);
         act_pack.add_tensor(arm_compute::TensorType::ACL_DST, dst_to_use);
@@ -365,8 +388,15 @@ status_t acl_matmul_t::execute_forward(const exec_ctx_t &ctx) const {
         acl_obj_->transC.run(transpose_packC);
     }
 
-    void *dst = dst_tensor.buffer();
+    void *dst = use_f32_acc_for_postops ? f32_acc_base : dst_tensor.buffer();
     pd()->acl_post_ops.execute(ctx, dst);
+
+    if (use_f32_acc_for_postops) {
+        const memory_desc_wrapper dst_d(pd()->dst_md());
+        const size_t nelems = dst_d.nelems();
+        cvt_float_to_float16((dnnl::impl::float16_t *)dst_base,
+                (float *)f32_acc_base, nelems);
+    }
 
     return status;
 }

@@ -57,6 +57,9 @@ struct acl_matmul_conf_t {
     // If this is true, the result of the matmul goes into a temporarily
     // allocated ACL tensor to be accumulated into the oneDNN dst during postops
     bool use_dst_acc_for_sum;
+    // If this is true, when using f16 with f32 accumulation, the GEMM outputs
+    // to an f32 accumulation buffer, post-ops run on f32, then downcast to f16
+    bool use_f32_acc_for_postops;
     arm_compute::TensorInfo src_tensor_info;
     arm_compute::TensorInfo wei_tensor_info;
     arm_compute::TensorInfo dst_tensor_info;

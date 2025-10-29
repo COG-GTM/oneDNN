@@ -166,6 +166,13 @@ status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
     amp.dst_tensor_info = arm_compute::TensorInfo(
             arm_compute::TensorShape(N, M, 1, dst_batch), 1, acl_dst_data_t);
 
+    amp.use_f32_acc_for_postops = false;
+    if (dst_md.data_type == data_type::f16 && amp.gemm_info.use_fp32_acc()) {
+        amp.dst_acc_info = arm_compute::TensorInfo(
+                arm_compute::TensorShape(N, M, 1, dst_batch), 1,
+                arm_compute::DataType::F32);
+    }
+
     // Validate ACL transpose
     if (amp.is_transA && !amp.do_transC)
         ACL_CHECK_VALID(arm_compute::experimental::op::CpuTranspose::validate(
@@ -230,6 +237,11 @@ status_t init_scratchpad(memory_tracking::registrar_t &scratchpad,
         const memory_desc_wrapper dst_d(&dst_md);
         scratchpad.book(memory_tracking::names::key_matmul_dst_in_acc_dt,
                 dst_d.nelems(), dst_d.data_type_size());
+    }
+    if (amp.use_f32_acc_for_postops) {
+        const memory_desc_wrapper dst_d(&dst_md);
+        scratchpad.book(memory_tracking::names::key_matmul_dst_in_acc_dt,
+                dst_d.nelems(), sizeof(float));
     }
     if (!aux_mem_req.empty()) {
         for (const auto &key : matmul_keys) {

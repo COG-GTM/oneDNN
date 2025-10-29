@@ -59,30 +59,27 @@ status_t acl_post_ops_t::execute(
             if (eltwise_post_op == nullptr) return status::runtime_error;
 
             if (dst_data_type == data_type::f16) {
-                // in this case we want to cast the src tensor up to fp32
                 arm_compute::TensorInfo src_info
                         = eltwise_post_op->pd()->aep.data_info;
-                // new src tensor with fp32 datatype
-                arm_compute::Tensor src_tensor;
-                src_tensor.allocator()->init(src_info);
-                src_tensor.allocator()->allocate();
-                float *src_f32 = (float *)src_tensor.buffer();
-                // total_size gives the size in bytes, we divide by 4 because the src_tensor is fp32
-                size_t num_elements = src_tensor.info()->total_size() / 4;
-                // cast src up to fp32 and store the result in src_f32
-                cvt_float16_to_float(
-                        src_f32, (dnnl::impl::float16_t *)src, num_elements);
-                // perform the operation in fp32
-                status_t eltwise_status = eltwise_post_op->execute_forward(
-                        ctx, src_f32, src_f32);
-                if (eltwise_status == status::success) {
-                    // cast src_f32 down and store final result in src
-                    cvt_float_to_float16((dnnl::impl::float16_t *)src, src_f32,
-                            num_elements);
+                if (src_info.data_type() == arm_compute::DataType::F32) {
+                    CHECK(eltwise_post_op->execute_forward(ctx, src, src));
+                } else {
+                    arm_compute::Tensor src_tensor;
+                    src_tensor.allocator()->init(src_info);
+                    src_tensor.allocator()->allocate();
+                    float *src_f32 = (float *)src_tensor.buffer();
+                    size_t num_elements = src_tensor.info()->total_size() / 4;
+                    cvt_float16_to_float(src_f32,
+                            (dnnl::impl::float16_t *)src, num_elements);
+                    status_t eltwise_status = eltwise_post_op->execute_forward(
+                            ctx, src_f32, src_f32);
+                    if (eltwise_status == status::success) {
+                        cvt_float_to_float16((dnnl::impl::float16_t *)src,
+                                src_f32, num_elements);
+                    }
+                    src_tensor.allocator()->free();
+                    CHECK(eltwise_status);
                 }
-                src_tensor.allocator()->free();
-                CHECK(eltwise_status);
-
             } else {
                 CHECK(eltwise_post_op->execute_forward(ctx, src, src));
             }
