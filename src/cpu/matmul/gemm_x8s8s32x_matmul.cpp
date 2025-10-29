@@ -116,7 +116,7 @@ status_t gemm_x8s8s32x_matmul_t::pd_t::init(engine_t *engine) {
             && one_of(dst_md()->data_type, f32, s32, s8, u8)
             && IMPLICATION(with_bias(),
                     one_of(weights_md(1)->data_type, f32, s32, s8, u8)
-                            && is_bias_1xN());
+                            && (is_bias_1xN() || is_bias_MxN()));
     VDISPATCH_MATMUL(problem_dt_correct, VERBOSE_UNSUPPORTED_DT_CFG);
 
     VDISPATCH_MATMUL(
@@ -296,6 +296,9 @@ status_t gemm_x8s8s32x_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const int scale_idx_mult
             = this->pd()->attr()->scales_.get_mask(DNNL_ARG_WEIGHTS)
             == (1 << (ndims - 1));
+    const size_t bia_dt_size = !pd()->with_bias()
+            ? 0
+            : types::data_type_size(pd()->weights_md(1)->data_type);
 
     std::atomic<status_t> st(status::success);
 
@@ -304,9 +307,6 @@ status_t gemm_x8s8s32x_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
                 = utils::get_dims_mask(dst_d.dims(), src_d.dims(), ndims);
         const int wei_mask
                 = utils::get_dims_mask(dst_d.dims(), weights_d.dims(), ndims);
-        const size_t bia_dt_size = !pd()->with_bias()
-                ? 0
-                : types::data_type_size(pd()->weights_md(1)->data_type);
         const size_t dst_dt_size = types::data_type_size(dst_d.data_type());
         const size_t work_amount = (size_t)batch * M * N;
         const size_t work_per_batch = (size_t)M * N;
@@ -448,8 +448,11 @@ status_t gemm_x8s8s32x_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
                                     + matrix_offset
                             : 0;
                     const ptrdiff_t oc_off = i_work % N;
+                    const ptrdiff_t bias_off = pd()->is_bias_MxN()
+                            ? dim1_off * N + oc_off
+                            : oc_off;
                     (*pp_kernel_)(curr_dst, curr_acc,
-                            bias + oc_off * bia_dt_size,
+                            bias + bias_off * bia_dt_size,
                             scales + oc_off * scale_idx_mult, dst_scales[0], 0,
                             dst_logical_off, dim1_off, gemm_M * gemm_N,
                             static_cast<size_t>(N), ldc, &dst_zero_point_f32,
@@ -506,9 +509,14 @@ status_t gemm_x8s8s32x_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
                     size_t start {}, end {};
                     balance211((size_t)(M * N), nthr, ithr, start, end);
                     const size_t dst_logical_off = start;
-                    const size_t dim1_off = start % N;
-                    (*pp_kernel_)(dst, acc, bias, scales, dst_scales[0], start,
-                            dst_logical_off, dim1_off, end, (size_t)N, ldc,
+                    const size_t dst_start_row_idx = start / N;
+                    const size_t dst_start_col_idx = start % N;
+                    const size_t bias_off = pd()->is_bias_MxN()
+                            ? dst_start_row_idx * N + dst_start_col_idx
+                            : dst_start_col_idx;
+                    (*pp_kernel_)(dst, acc, bias + bias_off * bia_dt_size, scales,
+                            dst_scales[0], start, dst_logical_off,
+                            dst_start_row_idx, end, (size_t)N, ldc,
                             &dst_zero_point_f32,
                             post_ops_binary_rhs_arg_vec.data(), dst, 0, ctx,
                             *pd()->dst_md());
