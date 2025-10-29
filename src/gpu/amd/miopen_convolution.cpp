@@ -74,6 +74,10 @@ status_t miopen_convolution_fwd_t::execute_convolution(
                     args.push_back(temp_reorder.get_native_pointer(ih));
 
                     pd()->impl_->execute(handle, args);
+
+                    hipStream_t currentStreamId;
+                    miopenGetStream(handle, &currentStreamId);
+                    hipStreamSynchronize(currentStreamId);
                 });
     });
 }
@@ -108,6 +112,10 @@ status_t miopen_convolution_bwd_data_t::execute_convolution(
                     args.push_back(arg_filter_scratch.get_native_pointer(ih));
 
                     pd()->impl_->execute(handle, args);
+
+                    hipStream_t currentStreamId;
+                    miopenGetStream(handle, &currentStreamId);
+                    hipStreamSynchronize(currentStreamId);
                 });
     });
 }
@@ -132,6 +140,10 @@ status_t miopen_convolution_bwd_weights_t::execute_zero_dims(
 
                     pd()->impl_->execute_set_weights_bias(
                             handle, weights, bias, 0.f);
+
+                    hipStream_t currentStreamId;
+                    miopenGetStream(handle, &currentStreamId);
+                    hipStreamSynchronize(currentStreamId);
                 });
     });
 }
@@ -172,6 +184,10 @@ status_t miopen_convolution_bwd_weights_t::execute_convolution(
                     args.push_back(arg_filter_scratch.get_native_pointer(ih));
 
                     pd()->impl_->execute(handle, args);
+
+                    hipStream_t currentStreamId;
+                    miopenGetStream(handle, &currentStreamId);
+                    hipStreamSynchronize(currentStreamId);
                 });
     });
 }

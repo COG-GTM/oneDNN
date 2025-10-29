@@ -86,6 +86,10 @@ status_t cudnn_convolution_fwd_t::execute_convolution(
             args.push_back(y_fp32_data.get_native_pointer(ih));
 
             pd()->impl_->execute(handle, args);
+
+            cudaStream_t currentStreamId;
+            cudnnGetStream(handle, &currentStreamId);
+            cudaStreamSynchronize(currentStreamId);
         });
     });
 }
@@ -120,6 +124,10 @@ status_t cudnn_convolution_bwd_data_t::execute_convolution(
             args.push_back(arg_filter_scratch.get_native_pointer(ih));
 
             pd()->impl_->execute(handle, args);
+
+            cudaStream_t currentStreamId;
+            cudnnGetStream(handle, &currentStreamId);
+            cudaStreamSynchronize(currentStreamId);
         });
     });
 }
@@ -143,6 +151,10 @@ status_t cudnn_convolution_bwd_weights_t::execute_zero_dims(
             void *bias = arg_diff_bias.get_native_pointer(ih);
 
             pd()->impl_->execute_set_weights_bias(handle, weights, bias, 0.f);
+
+            cudaStream_t currentStreamId;
+            cudnnGetStream(handle, &currentStreamId);
+            cudaStreamSynchronize(currentStreamId);
         });
     });
 }
@@ -183,6 +195,10 @@ status_t cudnn_convolution_bwd_weights_t::execute_convolution(
             args.push_back(arg_filter_scratch.get_native_pointer(ih));
 
             pd()->impl_->execute(handle, args);
+
+            cudaStream_t currentStreamId;
+            cudnnGetStream(handle, &currentStreamId);
+            cudaStreamSynchronize(currentStreamId);
         });
     });
 }

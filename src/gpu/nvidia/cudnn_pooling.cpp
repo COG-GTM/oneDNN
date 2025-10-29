@@ -103,6 +103,10 @@ status_t cudnn_pooling_fwd_t::execute(const exec_ctx_t &ctx) const {
             }
 
             pd()->pooling_impl_->execute(handle, x, y, ws_x, ws_y);
+
+            cudaStream_t currentStreamId;
+            cudnnGetStream(handle, &currentStreamId);
+            cudaStreamSynchronize(currentStreamId);
         });
     });
 }
@@ -139,6 +143,10 @@ status_t cudnn_pooling_bwd_t::execute(const exec_ctx_t &ctx) const {
             auto ws_y = (uint8_t *)ws_x + dst_offset_bytes;
 
             pd()->pooling_impl_->execute(handle, dx, dy, ws_x, ws_y);
+
+            cudaStream_t currentStreamId;
+            cudnnGetStream(handle, &currentStreamId);
+            cudaStreamSynchronize(currentStreamId);
         });
     });
 }

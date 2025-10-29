@@ -53,6 +53,10 @@ status_t miopen_lrn_fwd_t::execute(const exec_ctx_t &ctx) const {
 
                     std::vector<void *> args {src_, dst_, ws_};
                     pd()->lrn_impl_->execute(handle, args);
+
+                    hipStream_t currentStreamId;
+                    miopenGetStream(handle, &currentStreamId);
+                    hipStreamSynchronize(currentStreamId);
                 });
     });
 }
@@ -83,6 +87,10 @@ status_t miopen_lrn_bwd_t::execute(const exec_ctx_t &ctx) const {
                     args.push_back(arg_diff_dst.get_native_pointer(ih));
 
                     pd()->lrn_impl_->execute(handle, args);
+
+                    hipStream_t currentStreamId;
+                    miopenGetStream(handle, &currentStreamId);
+                    hipStreamSynchronize(currentStreamId);
                 });
     });
 }

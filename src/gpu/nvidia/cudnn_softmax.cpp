@@ -67,6 +67,10 @@ status_t cudnn_softmax_fwd_t::execute(const exec_ctx_t &ctx) const {
             args.push_back(&host_scales_[2]);
 
             pd()->softmax_impl_->execute(handle, args.data(), args.size());
+
+            cudaStream_t currentStreamId;
+            cudnnGetStream(handle, &currentStreamId);
+            cudaStreamSynchronize(currentStreamId);
         });
     });
 
@@ -96,6 +100,10 @@ status_t cudnn_softmax_bwd_t::execute(const exec_ctx_t &ctx) const {
             args.push_back(arg_diff_src.get_native_pointer(ih));
 
             pd()->softmax_impl_->execute(handle, args.data(), args.size());
+
+            cudaStream_t currentStreamId;
+            cudnnGetStream(handle, &currentStreamId);
+            cudaStreamSynchronize(currentStreamId);
         });
     });
 }

@@ -56,6 +56,10 @@ status_t miopen_binary_t::execute(const exec_ctx_t &ctx) const {
                     void *s1 = arg_scale1.get_native_pointer(ih);
 
                     pd()->binary_impl_->execute(handle, a, b, c, s0, s1);
+
+                    hipStream_t currentStreamId;
+                    miopenGetStream(handle, &currentStreamId);
+                    hipStreamSynchronize(currentStreamId);
                 });
     });
 }

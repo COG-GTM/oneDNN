@@ -70,6 +70,10 @@ protected:
 
             matmul_impl_->execute(rocblas_handle, miopen_handle, weights, src,
                     dst, bias, scratch);
+
+            hipStream_t currentStreamId;
+            rocblas_get_stream(rocblas_handle, &currentStreamId);
+            hipStreamSynchronize(currentStreamId);
         });
     }
 };

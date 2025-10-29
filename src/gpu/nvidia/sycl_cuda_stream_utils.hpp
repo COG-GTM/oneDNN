@@ -44,7 +44,7 @@ inline status_t copy_input_arg_to_host(const exec_ctx_t &ctx,
             CUDA_EXECUTE_FUNC(cuMemcpyAsync, (CUdeviceptr)host_ptr,
                     (CUdeviceptr)dev_ptr, size,
                     stream->get_underlying_stream());
-            cudaDeviceSynchronize();
+            cudaStreamSynchronize(stream->get_underlying_stream());
         });
     });
 }

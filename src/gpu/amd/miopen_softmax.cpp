@@ -52,6 +52,10 @@ status_t miopen_softmax_fwd_t::execute(const exec_ctx_t &ctx) const {
 
                     pd()->softmax_impl_->execute(
                             handle, args.data(), args.size());
+
+                    hipStream_t currentStreamId;
+                    miopenGetStream(handle, &currentStreamId);
+                    hipStreamSynchronize(currentStreamId);
                 });
     });
 }
@@ -82,6 +86,10 @@ status_t miopen_softmax_bwd_t::execute(const exec_ctx_t &ctx) const {
 
                     pd()->softmax_impl_->execute(
                             handle, args.data(), args.size());
+
+                    hipStream_t currentStreamId;
+                    miopenGetStream(handle, &currentStreamId);
+                    hipStreamSynchronize(currentStreamId);
                 });
     });
 }

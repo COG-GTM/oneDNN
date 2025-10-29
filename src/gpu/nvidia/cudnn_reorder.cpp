@@ -60,6 +60,10 @@ status_t cudnn_reorder_t::execute(const exec_ctx_t &ctx) const {
             void *dst_sc = arg_dst_scale.get_native_pointer(ih);
 
             pd()->reorder_->execute(handle, a, b, src_sc, dst_sc);
+
+            cudaStream_t currentStreamId;
+            cudnnGetStream(handle, &currentStreamId);
+            cudaStreamSynchronize(currentStreamId);
         });
     });
 }

@@ -78,6 +78,10 @@ status_t cudnn_inner_product_fwd_t::execute(const exec_ctx_t &ctx) const {
 
             pd()->inner_product_impl_->execute(
                     cudnn_handle, cublas_handle, args);
+
+            cudaStream_t currentStreamId;
+            cublasGetStream(cublas_handle, &currentStreamId);
+            cudaStreamSynchronize(currentStreamId);
         });
     });
 }
@@ -118,6 +122,10 @@ status_t cudnn_inner_product_bwd_data_t::execute(const exec_ctx_t &ctx) const {
 
             pd()->inner_product_impl_->execute(
                     cudnn_handle, cublas_handle, args);
+
+            cudaStream_t currentStreamId;
+            cublasGetStream(cublas_handle, &currentStreamId);
+            cudaStreamSynchronize(currentStreamId);
         });
     });
 }
@@ -182,6 +190,10 @@ status_t cudnn_inner_product_bwd_weights_t::execute(
 
             pd()->inner_product_impl_->execute(
                     cudnn_handle, cublas_handle, args);
+
+            cudaStream_t currentStreamId;
+            cublasGetStream(cublas_handle, &currentStreamId);
+            cudaStreamSynchronize(currentStreamId);
         });
     });
 }

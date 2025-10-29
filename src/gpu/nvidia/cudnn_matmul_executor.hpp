@@ -94,6 +94,10 @@ protected:
                             weights, src, dst, bias, reorder_scratch, src_scale,
                             wei_scale, dst_scale);
 
+                    cudaStream_t currentStreamId;
+                    cublasGetStream(cublas_handle, &currentStreamId);
+                    cudaStreamSynchronize(currentStreamId);
+
                     if (params->has_runtime_params_) {
                         sync_device();
                         free_runtime_scratch(
@@ -286,6 +290,10 @@ protected:
                             dst, bias, algo_scratch, reorder_scratch,
                             block_a_scratch, block_b_scratch, block_c_scratch,
                             nullptr, nullptr, dst_scale);
+
+                    cudaStream_t currentStreamId;
+                    cublasGetStream(cublas_handle, &currentStreamId);
+                    cudaStreamSynchronize(currentStreamId);
 
                     free_runtime_scratch(params->has_runtime_params_,
                             cublas_handle, cuda_stream, algo_scratch_ptr,
