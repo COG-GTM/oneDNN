@@ -95,7 +95,8 @@ status_t gemm_f32_matmul_t::pd_t::init(engine_t *engine) {
     VDISPATCH_MATMUL(
             attr()->has_default_values(primitive_attr_t::skip_mask_t::scales
                             | primitive_attr_t::skip_mask_t::post_ops
-                            | primitive_attr_t::skip_mask_t::sum_dt,
+                            | primitive_attr_t::skip_mask_t::sum_dt
+                            | primitive_attr_t::skip_mask_t::dropout,
                     dst_type),
             VERBOSE_UNSUPPORTED_ATTR);
     VDISPATCH_MATMUL(attr()->post_ops_.check_sum_consistency(dst_type,

@@ -62,6 +62,14 @@ struct rvv_matmul_t : public primitive_t {
             VDISPATCH_MATMUL(rvv_postops_t::post_ops_ok(attr()->post_ops_),
                     VERBOSE_UNSUPPORTED_POSTOP);
 
+            VDISPATCH_MATMUL(
+                    attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::scales
+                                    | primitive_attr_t::skip_mask_t::post_ops
+                                    | primitive_attr_t::skip_mask_t::sum_dt,
+                            d_type),
+                    VERBOSE_UNSUPPORTED_ATTR);
+
             VDISPATCH_MATMUL(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
 
             VDISPATCH_MATMUL(check_layouts(src_mdw, weights_mdw, dst_mdw),
