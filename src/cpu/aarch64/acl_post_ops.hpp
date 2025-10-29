@@ -158,11 +158,12 @@ struct acl_post_ops_t {
             CHECK(acl_utils::convert_to_acl_act(first_po, act_info_to_fuse));
 
             // post_op_start_index + 1 to skip the fused eltwise
-            return init(
-                    engine, attr, base_post_ops, dst_md, post_op_start_index + 1);
+            return init(engine, attr, base_post_ops, dst_md,
+                    post_op_start_index + 1);
         } else {
             // Nothing to fuse, just copy all post ops
-            return init(engine, attr, base_post_ops, dst_md, post_op_start_index);
+            return init(
+                    engine, attr, base_post_ops, dst_md, post_op_start_index);
         }
     }
 
