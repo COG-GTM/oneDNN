@@ -76,7 +76,8 @@ struct acl_wino_convolution_fwd_t : public primitive_t {
             using namespace data_type;
             const bool is_fp16_ok = expect_data_types(f16, f16, f16, f16, undef)
                     && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops, f16);
+                            primitive_attr_t::skip_mask_t::post_ops | primitive_attr_t::skip_mask_t::accumulation_mode,
+                            utils::one_of(attr()->acc_mode_, accumulation_mode::strict) ? f16 : f32);
             const bool is_fp32_ok = expect_data_types(f32, f32, f32, f32, undef)
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops, f32);

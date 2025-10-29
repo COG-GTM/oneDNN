@@ -44,7 +44,8 @@ status_t acl_depthwise_convolution_fwd_t::pd_t::init(engine_t *engine) {
 
     const bool is_fp16_ok = expect_data_types(f16, f16, f16, f16, undef)
             && attr()->has_default_values(
-                    primitive_attr_t::skip_mask_t::post_ops, f16);
+                    primitive_attr_t::skip_mask_t::post_ops | primitive_attr_t::skip_mask_t::accumulation_mode,
+                    utils::one_of(attr()->acc_mode_, accumulation_mode::strict) ? f16 : f32);
     const bool is_fp32_ok = expect_data_types(f32, f32, f32, f32, undef)
             && attr()->has_default_values(
                     primitive_attr_t::skip_mask_t::post_ops, f32);

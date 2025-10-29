@@ -96,7 +96,8 @@ status_t acl_inner_product_fwd_t::pd_t::init(engine_t *engine) {
     using smask_t = primitive_attr_t::skip_mask_t;
     const format_kind_t weights_format_kind_received = weights_md_.format_kind;
     const bool is_fp16_ok = expect_data_types(f16, f16, f16, f16, undef)
-            && attr()->has_default_values(smask_t::post_ops, f16);
+            && attr()->has_default_values(smask_t::post_ops | smask_t::accumulation_mode,
+                    utils::one_of(attr()->acc_mode_, accumulation_mode::strict) ? f16 : f32);
     const bool is_fp32_ok = expect_data_types(f32, f32, f32, f32, undef)
             && attr()->has_default_values(
                     smask_t::post_ops | smask_t::fpmath_mode, f32);
