@@ -51,6 +51,9 @@ status_t miopen_eltwise_fwd_t::execute(const exec_ctx_t &ctx) const {
 
                     pd()->eltwise_fwd_impl_->execute(
                             handle, args.data(), args.size());
+                    hipStream_t stream;
+                    miopenGetStream(handle, &stream);
+                    hipStreamSynchronize(stream);
                 });
     });
 }
@@ -79,6 +82,9 @@ status_t miopen_eltwise_bwd_t::execute(const exec_ctx_t &ctx) const {
 
                     pd()->eltwise_bwd_impl_->execute(
                             handle, args.data(), args.size());
+                    hipStream_t stream;
+                    miopenGetStream(handle, &stream);
+                    hipStreamSynchronize(stream);
                 });
     });
 }

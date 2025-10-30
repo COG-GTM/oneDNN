@@ -94,6 +94,10 @@ protected:
                             weights, src, dst, bias, reorder_scratch, src_scale,
                             wei_scale, dst_scale);
 
+                    cudaStream_t stream;
+                    cublasGetStream(cublas_handle, &stream);
+                    cuStreamSynchronize(stream);
+
                     if (params->has_runtime_params_) {
                         sync_device();
                         free_runtime_scratch(

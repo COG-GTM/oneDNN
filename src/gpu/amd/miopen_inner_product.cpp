@@ -69,6 +69,9 @@ status_t miopen_inner_product_fwd_t::execute(const exec_ctx_t &ctx) const {
 
                     pd()->inner_product_impl_->execute(
                             miopen_handle, rocblas_handle, args);
+                    hipStream_t stream;
+                    rocblas_get_stream(rocblas_handle, &stream);
+                    hipStreamSynchronize(stream);
                 });
     });
 }
@@ -107,6 +110,9 @@ status_t miopen_inner_product_bwd_data_t::execute(const exec_ctx_t &ctx) const {
 
                     pd()->inner_product_impl_->execute(
                             miopen_handle, rocblas_handle, args);
+                    hipStream_t stream;
+                    rocblas_get_stream(rocblas_handle, &stream);
+                    hipStreamSynchronize(stream);
                 });
     });
 }
@@ -168,6 +174,9 @@ status_t miopen_inner_product_bwd_weights_t::execute(
 
                     pd()->inner_product_impl_->execute(
                             miopen_handle, rocblas_handle, args);
+                    hipStream_t stream;
+                    rocblas_get_stream(rocblas_handle, &stream);
+                    hipStreamSynchronize(stream);
                 });
     });
 }
