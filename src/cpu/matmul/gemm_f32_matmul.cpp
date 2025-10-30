@@ -379,15 +379,9 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
                 size_t start {}, end {};
                 balance211((size_t)(M * N), nthr, ithr, start, end);
                 const size_t dst_logical_off = start;
-                const size_t dst_start_row_idx = dst_logical_off / N;
-                const size_t dst_start_col_idx = dst_logical_off % N;
-                const size_t bias_off = pd()->is_bias_MxN()
-                        ? dst_start_row_idx * N + dst_start_col_idx
-                        : dst_start_col_idx;
-                (*pp_kernel_)(dst, acc, bias + bias_off * bia_dt_size,
-                        pp_scales + dst_start_col_idx * scale_idx_mult,
-                        dst_scales[0], start, dst_logical_off,
-                        dst_start_row_idx, end, (size_t)N, ldc, nullptr,
+                const size_t oc_off = dst_logical_off % N;
+                (*pp_kernel_)(dst, acc, bias, pp_scales, dst_scales[0], start,
+                        dst_logical_off, oc_off, end, (size_t)N, ldc, nullptr,
                         post_ops_binary_rhs_arg_vec.data(), dst, 0, ctx,
                         *pd()->dst_md());
             });
