@@ -38,9 +38,10 @@ namespace inner_product_utils {
 struct ref_pp_kernel_t : public pp_kernel_t {
     ref_pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
             const primitive_attr_t *attr, data_type_t bias_dt,
-            data_type_t acc_dt, const memory_desc_t *dst_md, bool skip_sum)
-        : pp_kernel_t(
-                OC, MB, dst_mb_stride, attr, bias_dt, acc_dt, dst_md, skip_sum)
+            data_type_t acc_dt, const memory_desc_t *dst_md,
+            const memory_desc_t *bias_md, bool skip_sum)
+        : pp_kernel_t(OC, MB, dst_mb_stride, attr, bias_dt, acc_dt, dst_md,
+                bias_md, skip_sum)
         , dst_md_(dst_md)
         , skip_sum_(skip_sum)
         , do_postops_(this->do_sum_ || this->do_eltwise_ || this->do_binary_
@@ -84,6 +85,9 @@ void ref_pp_kernel_t::operator()(void *dst, const void *acc, const char *bias,
     ref_post_ops_t::args_t args;
     args.ctx = &ctx;
     args.dst_md = &dst_md;
+    
+    const memory_desc_wrapper bia_d(this->bias_md_);
+    
     auto calculate_dst_value_and_increment_oc =
             [&](const void *acc, void *dst, size_t off, size_t &oc_value,
                     const size_t dst_offset) {
@@ -91,8 +95,15 @@ void ref_pp_kernel_t::operator()(void *dst, const void *acc, const char *bias,
                 if (this->do_scale_)
                     d *= scales[oc_value * this->scale_idx_mult_];
                 if (this->do_bias()) {
+                    dims_t dst_dims_idx;
+                    utils::l_dims_by_l_offset(dst_dims_idx, dst_offset,
+                            dst_md.dims, this->ndims_);
+                    dims_t bia_dims_idx;
+                    utils::copy_dims_with_mask(bia_dims_idx, dst_dims_idx,
+                            this->ndims_, this->bia_mask_);
+                    const auto bias_off = bia_d.off_v(bia_dims_idx);
                     const float b = io::load_float_value(
-                            this->bias_data_type_, bias, oc_value);
+                            this->bias_data_type_, bias, bias_off);
                     d += b;
                 }
                 if (do_postops_) {
@@ -150,7 +161,8 @@ void ref_pp_kernel_t::operator()(void *dst, const void *acc, const char *bias,
 
 pp_kernel_t::pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
         const primitive_attr_t *attr, data_type_t bias_dt, data_type_t acc_dt,
-        const memory_desc_t *dst_md, bool skip_sum)
+        const memory_desc_t *dst_md, const memory_desc_t *bias_md,
+        bool skip_sum)
     : OC_(OC)
     , MB_(MB)
     , dst_mb_stride_(dst_mb_stride)
@@ -159,7 +171,16 @@ pp_kernel_t::pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
     , dst_data_type_(dst_md->data_type)
     , do_scale_(!attr->scales_.has_default_values(DNNL_ARG_SRC)
               || !attr->scales_.has_default_values(DNNL_ARG_WEIGHTS))
-    , ndims_(dst_md->ndims) {
+    , ndims_(dst_md->ndims)
+    , bias_md_(bias_md)
+    , bia_mask_(0) {
+    
+    if (do_bias()) {
+        const memory_desc_wrapper dst_d(dst_md);
+        const memory_desc_wrapper bia_d(bias_md);
+        bia_mask_ = utils::get_dims_mask(
+                dst_d.dims(), bia_d.dims(), dst_d.ndims());
+    }
 
     if (!attr->scales_.has_default_values(DNNL_ARG_WEIGHTS)) {
         int wei_mask = attr->scales_.get_mask(DNNL_ARG_WEIGHTS);
@@ -198,15 +219,16 @@ pp_kernel_t::pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
 
 pp_kernel_t *pp_kernel_t::create(size_t OC, size_t MB, dim_t dst_mb_stride,
         const primitive_attr_t *attr, data_type_t bias_dt, data_type_t acc_dt,
-        const memory_desc_t *dst_md, bool skip_sum) {
+        const memory_desc_t *dst_md, const memory_desc_t *bias_md,
+        bool skip_sum) {
 #if DNNL_X64
-    auto *res = x64::inner_product_utils::jit_pp_kernel_create(
-            OC, MB, dst_mb_stride, attr, bias_dt, acc_dt, dst_md, skip_sum);
+    auto *res = x64::inner_product_utils::jit_pp_kernel_create(OC, MB,
+            dst_mb_stride, attr, bias_dt, acc_dt, dst_md, bias_md, skip_sum);
     if (res) return res;
 #endif
 
-    return new ref_pp_kernel_t(
-            OC, MB, dst_mb_stride, attr, bias_dt, acc_dt, dst_md, skip_sum);
+    return new ref_pp_kernel_t(OC, MB, dst_mb_stride, attr, bias_dt, acc_dt,
+            dst_md, bias_md, skip_sum);
 }
 
 bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d,
