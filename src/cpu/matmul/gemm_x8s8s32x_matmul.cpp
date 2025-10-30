@@ -115,8 +115,8 @@ status_t gemm_x8s8s32x_matmul_t::pd_t::init(engine_t *engine) {
             && weights_md()->data_type == s8 && desc()->accum_data_type == s32
             && one_of(dst_md()->data_type, f32, s32, s8, u8)
             && IMPLICATION(with_bias(),
-                    one_of(weights_md(1)->data_type, f32, s32, s8, u8)
-                            && is_bias_1xN());
+                    weights_md(1)
+                            && one_of(weights_md(1)->data_type, f32, s32, s8, u8));
     VDISPATCH_MATMUL(problem_dt_correct, VERBOSE_UNSUPPORTED_DT_CFG);
 
     VDISPATCH_MATMUL(

@@ -32,12 +32,13 @@ namespace inner_product_utils {
 struct pp_kernel_t {
     static pp_kernel_t *create(size_t OC, size_t MB, dim_t dst_mb_stride,
             const primitive_attr_t *attr, data_type_t bias_dt,
-            data_type_t acc_dt, const memory_desc_t *dst_md, bool skip_sum);
+            data_type_t acc_dt, const memory_desc_t *dst_md,
+            const memory_desc_t *bias_md, bool skip_sum);
     static pp_kernel_t *create(
             const cpu_inner_product_fwd_pd_t *pd, bool skip_sum) {
         return create(pd->OC(), pd->MB(), pd->OC(), pd->attr(),
                 pd->desc()->bias_desc.data_type, pd->desc()->accum_data_type,
-                pd->dst_md(), skip_sum);
+                pd->dst_md(), pd->weights_md(1), skip_sum);
     }
 
     virtual ~pp_kernel_t() = default;
@@ -60,7 +61,8 @@ struct pp_kernel_t {
 protected:
     pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
             const primitive_attr_t *attr, data_type_t bias_dt,
-            data_type_t acc_dt, const memory_desc_t *dst_md, bool skip_sum);
+            data_type_t acc_dt, const memory_desc_t *dst_md,
+            const memory_desc_t *bias_md, bool skip_sum);
 
     size_t OC_;
     size_t MB_;
@@ -85,6 +87,8 @@ protected:
     bool mb_blk_kernel_ = false;
     post_ops_t post_ops_;
     int ndims_;
+    const memory_desc_t *bias_md_;
+    int bia_mask_;
 
     bool has_trivial_mb_stride() const {
         return (!runtime_oc()) && (OC_ == (size_t)dst_mb_stride_);

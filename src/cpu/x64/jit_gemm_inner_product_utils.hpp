@@ -28,7 +28,7 @@ namespace inner_product_utils {
 cpu::inner_product_utils::pp_kernel_t *jit_pp_kernel_create(size_t OC,
         size_t MB, dim_t dst_mb_stride, const primitive_attr_t *attr,
         data_type_t bias_dt, data_type_t acc_dt, const memory_desc_t *dst_md,
-        bool skip_sum);
+        const memory_desc_t *bias_md, bool skip_sum);
 
 inline cpu_isa_t get_max_jit_pp_kernel_supported_isa() {
 #define CASE(isa) \

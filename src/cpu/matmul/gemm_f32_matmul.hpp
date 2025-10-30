@@ -76,7 +76,7 @@ struct gemm_f32_matmul_t : public primitive_t {
                             pd()->ldc(), &pd()->params().pp_attr_,
                             pd()->desc()->bias_desc.data_type,
                             pd()->desc()->accum_data_type, pd()->dst_md(),
-                            pd()->params().skip_sum_)));
+                            pd()->weights_md(1), pd()->params().skip_sum_)));
             return pp_kernel_->create_kernel();
         }
 

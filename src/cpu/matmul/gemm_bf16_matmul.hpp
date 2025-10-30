@@ -80,7 +80,7 @@ struct gemm_bf16_matmul_t : public primitive_t {
                             pd()->ldc(), &pd()->params().pp_attr_,
                             pd()->desc()->bias_desc.data_type,
                             pd()->desc()->accum_data_type, pd()->dst_md(),
-                            skip_sum)));
+                            pd()->weights_md(1), skip_sum)));
             return pp_kernel_->create_kernel();
         }
         return status::success;
