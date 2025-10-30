@@ -231,6 +231,11 @@ status_t init_scratchpad(memory_tracking::registrar_t &scratchpad,
         scratchpad.book(memory_tracking::names::key_matmul_dst_in_acc_dt,
                 dst_d.nelems(), dst_d.data_type_size());
     }
+    if (amp.use_dst_acc_for_f32_postops) {
+        const memory_desc_wrapper dst_d(&dst_md);
+        scratchpad.book(memory_tracking::names::key_matmul_dst_in_acc_dt,
+                dst_d.nelems(), sizeof(float));
+    }
     if (!aux_mem_req.empty()) {
         for (const auto &key : matmul_keys) {
             const auto id = key.first;
