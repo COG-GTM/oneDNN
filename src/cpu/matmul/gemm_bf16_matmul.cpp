@@ -48,7 +48,7 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::init(engine_t *engine) {
     auto check_bias = [&]() -> bool {
         return !with_bias()
                 || (utils::one_of(weights_md(1)->data_type, f32, bf16)
-                        && is_bias_1xN());
+                        && (is_bias_1xN() || is_bias_MxN()));
     };
 
     VDISPATCH_MATMUL(is_dense_format_kind(), VERBOSE_UNSUPPORTED_SPARSE_CFG);
@@ -273,15 +273,16 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
             = this->pd()->attr()->scales_.get_mask(DNNL_ARG_WEIGHTS)
             == (1 << (ndims - 1));
 
+    const size_t bia_dt_size = !pd()->with_bias()
+            ? 0
+            : types::data_type_size(pd()->weights_md(1)->data_type);
+
     std::atomic<status_t> st(status::success);
     if (!use_single_gemm_call) {
         const int src_mask
                 = utils::get_dims_mask(dst_d.dims(), src_d.dims(), ndims);
         const int wei_mask
                 = utils::get_dims_mask(dst_d.dims(), weights_d.dims(), ndims);
-        const size_t bia_dt_size = !pd()->with_bias()
-                ? 0
-                : types::data_type_size(pd()->weights_md(1)->data_type);
         const size_t work_amount = (size_t)batch * M * N;
         const size_t work_per_batch = (size_t)M * N;
         const dim_t acc_stride = gemm_based::get_scratchpad_block_elements(
@@ -363,8 +364,11 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
                                     + matrix_offset
                             : 0;
                     const ptrdiff_t oc_off = i_work % N;
+                    const size_t bias_off = pd()->is_bias_MxN()
+                            ? dim1_off * N + oc_off
+                            : oc_off;
                     (*pp_kernel_)(curr_dst, curr_acc,
-                            bias + oc_off * bia_dt_size,
+                            bias + bias_off * bia_dt_size,
                             pp_scales + oc_off * scale_idx_mult, dst_scales[0],
                             0, dst_logical_off, dim1_off, gemm_M * gemm_N,
                             static_cast<size_t>(N), ldc, nullptr,
@@ -389,11 +393,16 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
                 size_t start {}, end {};
                 balance211((size_t)(M * N), nthr, ithr, start, end);
                 const size_t dst_logical_off = start;
-                const size_t dim1_off = start % N;
-                (*pp_kernel_)(dst, acc, bias, pp_scales, dst_scales[0], start,
-                        dst_logical_off, dim1_off, end, (size_t)N, ldc, nullptr,
-                        post_ops_binary_rhs_arg_vec.data(), dst, 0, ctx,
-                        *pd()->dst_md());
+                const size_t dim1_off = dst_logical_off / N;
+                const size_t oc_off = dst_logical_off % N;
+                const size_t bias_off = pd()->is_bias_MxN()
+                        ? dim1_off * N + oc_off
+                        : oc_off;
+                (*pp_kernel_)(dst, acc, bias + bias_off * bia_dt_size,
+                        pp_scales + oc_off * scale_idx_mult, dst_scales[0],
+                        start, dst_logical_off, dim1_off, end, (size_t)N, ldc,
+                        nullptr, post_ops_binary_rhs_arg_vec.data(), dst, 0,
+                        ctx, *pd()->dst_md());
             });
         }
     }
