@@ -44,7 +44,8 @@ using namespace data_type;
 
 status_t gemm_f32_matmul_t::pd_t::init(engine_t *engine) {
     auto check_bias = [&]() -> bool {
-        return !with_bias() || (weights_md(1)->data_type == f32);
+        return !with_bias()
+                || (weights_md(1) && weights_md(1)->data_type == f32);
     };
 
     auto check_attr_scales = [&]() -> bool {
