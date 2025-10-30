@@ -386,8 +386,8 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
                         : dst_start_col_idx;
                 (*pp_kernel_)(dst, acc, bias + bias_off * bia_dt_size,
                         pp_scales + dst_start_col_idx * scale_idx_mult,
-                        dst_scales[0], start, dst_logical_off, dst_start_row_idx,
-                        end, (size_t)N, ldc, nullptr,
+                        dst_scales[0], start, dst_logical_off,
+                        dst_start_row_idx, end, (size_t)N, ldc, nullptr,
                         post_ops_binary_rhs_arg_vec.data(), dst, 0, ctx,
                         *pd()->dst_md());
             });

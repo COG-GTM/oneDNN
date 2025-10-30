@@ -395,9 +395,8 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
                 const size_t dst_logical_off = start;
                 const size_t dim1_off = dst_logical_off / N;
                 const size_t oc_off = dst_logical_off % N;
-                const size_t bias_off = pd()->is_bias_MxN()
-                        ? dim1_off * N + oc_off
-                        : oc_off;
+                const size_t bias_off
+                        = pd()->is_bias_MxN() ? dim1_off * N + oc_off : oc_off;
                 (*pp_kernel_)(dst, acc, bias + bias_off * bia_dt_size,
                         pp_scales + oc_off * scale_idx_mult, dst_scales[0],
                         start, dst_logical_off, dim1_off, end, (size_t)N, ldc,
