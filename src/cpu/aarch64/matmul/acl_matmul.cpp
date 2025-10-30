@@ -149,7 +149,7 @@ status_t acl_matmul_t::pd_t::init(engine_t *engine) {
 
     amp_.do_act = false;
     arm_compute::ActivationLayerInfo act_info;
-    CHECK(acl_post_ops.init(engine, attr_.post_ops_, dst_md_, act_info,
+    CHECK(acl_post_ops.init(engine, attr_.post_ops_, dst_md_, act_info, attr(),
             amp_.gemm_info.accumulate() ? 1 : 0));
     amp_.gemm_info.set_activation_info(act_info);
 
