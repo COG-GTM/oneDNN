@@ -61,6 +61,9 @@ status_t cudnn_binary_t::execute(const exec_ctx_t &ctx) const {
 
             pd()->binary_impl_->execute(
                     handle, a, b, c, &host_scales_[0], &host_scales_[1]);
+            cudaStream_t stream;
+            cudnnGetStream(handle, &stream);
+            cuStreamSynchronize(stream);
         });
     });
 }

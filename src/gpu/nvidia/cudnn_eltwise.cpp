@@ -48,6 +48,9 @@ status_t cudnn_eltwise_fwd_t::execute(const exec_ctx_t &ctx) const {
             args.push_back(arg_dst.get_native_pointer(ih));
 
             pd()->eltwise_fwd_impl_->execute(handle, args.data(), args.size());
+            cudaStream_t stream;
+            cudnnGetStream(handle, &stream);
+            cuStreamSynchronize(stream);
         });
     });
 }
@@ -76,6 +79,9 @@ status_t cudnn_eltwise_bwd_t::execute(const exec_ctx_t &ctx) const {
             args.push_back(arg_diff_src.get_native_pointer(ih));
 
             pd()->eltwise_bwd_impl_->execute(handle, args.data(), args.size());
+            cudaStream_t stream;
+            cudnnGetStream(handle, &stream);
+            cuStreamSynchronize(stream);
         });
     });
 }

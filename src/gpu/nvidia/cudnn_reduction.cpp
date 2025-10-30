@@ -48,6 +48,9 @@ status_t cudnn_reduction_t::execute(const exec_ctx_t &ctx) const {
             void *c = arg_dst.get_native_pointer(ih);
             void *scratch = arg_scratch.get_native_pointer(ih);
             pd()->reduction_impl_->execute(handle, a, c, scratch);
+            cudaStream_t stream;
+            cudnnGetStream(handle, &stream);
+            cuStreamSynchronize(stream);
         });
     });
 }

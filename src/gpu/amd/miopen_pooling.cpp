@@ -88,6 +88,9 @@ status_t miopen_pooling_fwd_t::execute(const exec_ctx_t &ctx) const {
                     void *y = arg_dst.get_native_pointer(ih);
                     void *ws = arg_wkspace.get_native_pointer(ih);
                     pd()->pooling_impl_->execute(handle, x, y, ws);
+                    hipStream_t stream;
+                    miopenGetStream(handle, &stream);
+                    hipStreamSynchronize(stream);
                 });
     });
 }
@@ -119,6 +122,9 @@ status_t miopen_pooling_bwd_t::execute(const exec_ctx_t &ctx) const {
                     void *ws = arg_wkspace.get_native_pointer(ih);
 
                     pd()->pooling_impl_->execute(handle, dx, dy, ws);
+                    hipStream_t stream;
+                    miopenGetStream(handle, &stream);
+                    hipStreamSynchronize(stream);
                 });
     });
 }
