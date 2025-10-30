@@ -201,12 +201,12 @@ struct acl_batch_normalization_fwd_t : public primitive_t {
                 // will be for a different, unrecoverable reason
                 CHECK(validate(abp.act_info));
                 // init any additional post ops
-                CHECK(post_ops.init(engine, attr_.post_ops_, src_md_));
+                CHECK(post_ops.init(engine, attr_.post_ops_, src_md_, attr()));
             } else {
                 // init post ops, removing first eltwise for fusion
                 arm_compute::ActivationLayerInfo act_info;
                 CHECK(post_ops.init(
-                        engine, attr_.post_ops_, src_md_, act_info));
+                        engine, attr_.post_ops_, src_md_, act_info, attr()));
                 // ACL BNorm doesn't support all the same eltwise ops as the
                 // standalone ACL operator, so fall back to unfused eltwise if
                 // validate fails
@@ -216,7 +216,7 @@ struct acl_batch_normalization_fwd_t : public primitive_t {
                 } else {
                     // validate unfused eltwise + remaining post ops
                     CHECK(validate());
-                    CHECK(post_ops.init(engine, attr_.post_ops_, src_md_));
+                    CHECK(post_ops.init(engine, attr_.post_ops_, src_md_, attr()));
                 }
             }
 

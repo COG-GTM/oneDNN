@@ -218,7 +218,7 @@ status_t acl_lowp_matmul_sq_t::pd_t::init_scratchpad(engine_t *engine,
         const dnnl::impl::memory_desc_t &dst_md,
         const arm_compute::experimental::MemoryRequirements &aux_mem_req) {
 
-    CHECK(post_ops.init(engine, attr_post_ops, dst_md, act_info));
+    CHECK(post_ops.init(engine, attr_post_ops, dst_md, act_info, attr()));
 
     // Book temp mem.
     if (!aux_mem_req.empty()) {

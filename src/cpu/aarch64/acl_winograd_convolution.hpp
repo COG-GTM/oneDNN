@@ -96,7 +96,7 @@ struct acl_wino_convolution_fwd_t : public primitive_t {
             set_default_alg_kind(alg_kind::convolution_winograd);
 
             CHECK(post_ops.init(
-                    engine, attr_.post_ops_, dst_md_, acp_.act_info));
+                    engine, attr_.post_ops_, dst_md_, acp_.act_info, &attr_));
             acp_.use_dst_acc_for_sum = post_ops.has_sum();
 
             if (acp_.use_dst_acc_for_sum) {
