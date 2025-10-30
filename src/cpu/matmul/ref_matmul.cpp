@@ -244,7 +244,8 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
         return io::load_float_value(bia_d.data_type(), bias, bias_off);
     };
 
-    auto sum_dt = pd()->attr()->post_ops_.get_sum_dt(dst_d.data_type());
+    // Force sum to use f32 to ensure post-ops compute in f32
+    auto sum_dt = data_type::f32;
     bool with_dropout = !pd()->attr()->dropout_.has_default_values();
 
     const auto &scratchpad = ctx.get_scratchpad_grantor();
