@@ -272,8 +272,8 @@ jit_pp_kernel_t<isa>::jit_pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
         const primitive_attr_t *attr, data_type_t bias_dt, data_type_t acc_dt,
         const memory_desc_t *dst_md, const memory_desc_t *bias_md,
         bool skip_sum)
-    : pp_kernel_t(OC, MB, dst_mb_stride, attr, bias_dt, acc_dt, dst_md,
-            bias_md, skip_sum)
+    : pp_kernel_t(OC, MB, dst_mb_stride, attr, bias_dt, acc_dt, dst_md, bias_md,
+            skip_sum)
     , jit_generator_t(jit_name(), isa) {
     assert(IMPLICATION(this->dst_data_type_ == bf16, mayiuse(avx512_core)));
 
@@ -1248,13 +1248,13 @@ pp_kernel_t *jit_pp_kernel_create(size_t OC, size_t MB, dim_t dst_mb_stride,
         const primitive_attr_t *attr, data_type_t bias_dt, data_type_t acc_dt,
         const memory_desc_t *dst_md, const memory_desc_t *bias_md,
         bool skip_sum) {
-    
+
     if (bias_md != nullptr) {
         const memory_desc_wrapper dst_d(dst_md);
         const memory_desc_wrapper bia_d(bias_md);
         const int bia_mask = utils::get_dims_mask(
                 dst_d.dims(), bia_d.dims(), dst_d.ndims());
-        
+
         bool is_1d_bias = true;
         for (int d = 0; d < dst_d.ndims() - 1; d++) {
             if ((bia_mask & (1 << d)) != 0) {
@@ -1262,12 +1262,10 @@ pp_kernel_t *jit_pp_kernel_create(size_t OC, size_t MB, dim_t dst_mb_stride,
                 break;
             }
         }
-        
-        if (!is_1d_bias) {
-            return nullptr;
-        }
+
+        if (!is_1d_bias) { return nullptr; }
     }
-    
+
     if (mayiuse(avx512_core_bf16)) {
         return new jit_pp_kernel_t<avx512_core_bf16>(OC, MB, dst_mb_stride,
                 attr, bias_dt, acc_dt, dst_md, bias_md, skip_sum);

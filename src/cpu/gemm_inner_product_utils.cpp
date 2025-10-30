@@ -85,9 +85,9 @@ void ref_pp_kernel_t::operator()(void *dst, const void *acc, const char *bias,
     ref_post_ops_t::args_t args;
     args.ctx = &ctx;
     args.dst_md = &dst_md;
-    
+
     const memory_desc_wrapper bia_d(this->bias_md_);
-    
+
     auto calculate_dst_value_and_increment_oc =
             [&](const void *acc, void *dst, size_t off, size_t &oc_value,
                     const size_t dst_offset) {
@@ -174,7 +174,7 @@ pp_kernel_t::pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
     , ndims_(dst_md->ndims)
     , bias_md_(bias_md)
     , bia_mask_(0) {
-    
+
     if (do_bias()) {
         const memory_desc_wrapper dst_d(dst_md);
         const memory_desc_wrapper bia_d(bias_md);
