@@ -144,11 +144,11 @@ struct acl_post_ops_t {
 
         CHECK(base_post_ops.set_default_formats(&dst_md));
         dst_data_type = dst_md.data_type;
-        
+
         const bool skip_fp16_fusion = (dst_data_type == data_type::f16) && attr
                 && utils::one_of(attr->acc_mode_, accumulation_mode::strict,
                         accumulation_mode::f32);
-        
+
         if (base_post_ops.len() >= 1 && base_post_ops.entry_[0].is_eltwise()
                 && !skip_fp16_fusion) {
 
@@ -158,10 +158,12 @@ struct acl_post_ops_t {
             CHECK(acl_utils::convert_to_acl_act(first_po, act_info_to_fuse));
 
             // post_op_start_index + 1 to skip the fused eltwise
-            return init(engine, base_post_ops, dst_md, attr, post_op_start_index + 1);
+            return init(engine, base_post_ops, dst_md, attr,
+                    post_op_start_index + 1);
         } else {
             // Nothing to fuse, just copy all post ops
-            return init(engine, base_post_ops, dst_md, attr, post_op_start_index);
+            return init(
+                    engine, base_post_ops, dst_md, attr, post_op_start_index);
         }
     }
 

@@ -83,8 +83,7 @@ status_t init_scratchpad(op_t &conv, memory_tracking::registrar_t &scratchpad,
         const std::map<int, conv_key_t> &conv_keys, engine_t *engine,
         post_ops_t &post_ops, dnnl::impl::post_ops_t &attr_post_ops,
         arm_compute::ActivationLayerInfo &act_info, bool &use_dst_acc_for_sum,
-        const dnnl::impl::memory_desc_t &dst_md,
-        const primitive_attr_t *attr) {
+        const dnnl::impl::memory_desc_t &dst_md, const primitive_attr_t *attr) {
 
     // Book temp mem.
     const auto aux_mem_req = conv.workspace();

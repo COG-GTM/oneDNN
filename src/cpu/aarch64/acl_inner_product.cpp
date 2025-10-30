@@ -173,8 +173,8 @@ status_t acl_inner_product_fwd_t::pd_t::init_conf_ip(
     aip_.fc_info.enable_fast_math = utils::one_of(
             attr()->fpmath_.mode_, fpmath_mode::bf16, fpmath_mode::any);
 
-    CHECK(post_ops.init(
-            engine, attr_.post_ops_, dst_md_, aip_.fc_info.activation_info, attr()));
+    CHECK(post_ops.init(engine, attr_.post_ops_, dst_md_,
+            aip_.fc_info.activation_info, attr()));
     aip_.use_dst_acc_for_sum = post_ops.has_sum();
 
     // WeightFormat::ANY tells ACL we can handle any format
