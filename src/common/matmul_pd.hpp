@@ -158,6 +158,19 @@ struct matmul_pd_t : public primitive_desc_t {
         return dims[n_dims - 1] == N();
     }
 
+    bool is_bias_MxN() const {
+        if (!with_bias()) return false;
+
+        const auto &bias_md = *weights_md(1);
+        const auto &dims = bias_md.dims;
+        const int bias_ndims = bias_md.ndims;
+        for (int i = 0; i < bias_ndims - 2; ++i) {
+            if (dims[i] != 1) return false;
+        }
+
+        return dims[bias_ndims - 2] == M() && dims[bias_ndims - 1] == N();
+    }
+
     // Quantization mask frequently used for scales and zero points
     int src_qmask_M() const {
         const int src_ndims = src_md(0)->ndims;
